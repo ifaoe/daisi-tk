@@ -18,6 +18,7 @@
 
 from shapely.wkt import loads, dumps
 from shapely.ops import cascaded_union
+from shapely.geometry import MultiPolygon
 from argparse import ArgumentParser
 import psycopg2
 from pysolar.solar import get_azimuth
@@ -39,13 +40,14 @@ class ImagePair:
         self.cam2_env = cam2env
         self.azimuth = solar_azimuth
 
+
 if __name__ == '__main__':
 
     parser = ArgumentParser(description='Calculate non overlapping envelopes for DAISI images.')
     parser.add_argument('-H', '--host', type=str, default='127.0.0.1', help='Database host (default: 127.0.0.1).')
     parser.add_argument('-d', '--database', type=str, default='daisi', help='Database name (default: DAISI).')
     parser.add_argument('-u', '--user', type=str, default='daisi', help='Database user (default: DAISI).')
-    parser.add_argument('-P', '--password', type=str, default='***', help='Database password.')
+    parser.add_argument('-P', '--password', type=str, default='18ifaoe184', help='Database password.')
     parser.add_argument('-p', '--port', type=str, default='5432', help='Database port (default: 5432).')
     parser.add_argument('-o', '--output', type=str, help='Output destination (default: STDOUT)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbosity')
@@ -69,7 +71,7 @@ if __name__ == '__main__':
 
     # get correct utm sector
     logger.debug("Catching UTM Sector from database.")
-    cursor.execute("SELECT utm_sector FROM projects WHERE flight_id=%s", (session, ))
+    cursor.execute("SELECT utm_sector FROM projects WHERE flight_id=%s", (session,))
     row = cursor.fetchone()
     utm_sector = row[0]
 
@@ -77,9 +79,9 @@ if __name__ == '__main__':
     logger.debug("Getting gps and geo data from database.")
     image_pairs = {}
     cursor.execute(
-        "SELECT sync_id, gps_trc, cam1_id, cam2_id, ST_AsText(geo_rc_sb), ST_AsText(geo_rc_bb), gps_tm + gps_dt, lon, lat, head_stabi FROM sync_utm{0} "
+        "SELECT sync_id, gps_trc, cam1_id, cam2_id, ST_AsText(ST_Multi(geo_rc_sb)), ST_AsText(ST_Multi(geo_rc_bb)), gps_tm + gps_dt, lon, lat, head_stabi FROM sync_utm{0} "
         "WHERE session=%s ORDER BY sync_id".format(utm_sector),
-        (session, ))
+        (session,))
     for record in cursor:
         (sync_id, trac, cam1_id, cam2_id, cam1_env, cam2_env, timestamp, lon, lat, heading) = record
         solar_direction = (heading - get_azimuth(lon, lat, timestamp) + 360) % 360
@@ -98,64 +100,68 @@ if __name__ == '__main__':
         cam2_env = image_pairs[sync_id].cam2_env
         if 0 <= solar_direction < 90:
             try:
-                ne_env = image_pairs[sync_id+1].cam1_env
-                nw_env = image_pairs[sync_id+1].cam2_env
+                ne_env = image_pairs[sync_id + 1].cam1_env
+                nw_env = image_pairs[sync_id + 1].cam2_env
                 # cut cam 1
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([ne_env, nw_env]))
                 # cut cam 2
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([cam1_env, ne_env, nw_env]))
             except KeyError:
-                logger.debug("sync_id {0} not found. Assuming last image.".format(sync_id+1))
+                logger.debug("sync_id {0} not found. Assuming last image.".format(sync_id + 1))
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
 
         # case SE cut south and east
         elif 90 <= solar_direction < 180:
             try:
-                se_env = image_pairs[sync_id-1].cam1_env
-                sw_env = image_pairs[sync_id-1].cam2_env
+                se_env = image_pairs[sync_id - 1].cam1_env
+                sw_env = image_pairs[sync_id - 1].cam2_env
                 # cut cam 1
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([se_env, sw_env]))
                 # cut cam 2
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([cam1_env, se_env, sw_env]))
             except KeyError:
-                logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id-1))
+                logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id - 1))
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
 
         # case SW cut south and west
         elif 180 <= solar_direction < 270:
             try:
-                se_env = image_pairs[sync_id-1].cam1_env
-                sw_env = image_pairs[sync_id-1].cam2_env
+                se_env = image_pairs[sync_id - 1].cam1_env
+                sw_env = image_pairs[sync_id - 1].cam2_env
                 # cut cam 1
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([cam2_env, se_env, sw_env]))
                 # cut cam 2
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([se_env, sw_env]))
             except KeyError:
-                logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id-1))
+                logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id - 1))
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cam2_env)
 
         # case NW cut north and west
         elif 270 <= solar_direction < 360:
             try:
-                ne_env = image_pairs[sync_id+1].cam1_env
-                nw_env = image_pairs[sync_id+1].cam2_env
+                ne_env = image_pairs[sync_id + 1].cam1_env
+                nw_env = image_pairs[sync_id + 1].cam2_env
                 # cut cam 1
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([cam2_env, ne_env, sw_env]))
                 # cut cam 2
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([ne_env, nw_env]))
             except KeyError:
-                logger.debug("sync_id {0} not found. Assuming last image.".format(sync_id+1))
+                logger.debug("sync_id {0} not found. Assuming last image.".format(sync_id + 1))
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cam2_env)
         else:
-            logger.warn("Unknown handling for azimuth value {0}. Images with sync_id {1} won't be processed".format(solar_direction, sync_id,))
+            logger.warn("Unknown handling for azimuth value {0}. Images with sync_id {1} won't be processed".format(solar_direction, sync_id, ))
 
     # create output
     # to stdout
     logger.debug("Creating output.")
     logger.debug("Writing to stdout.")
-    print("INSERT INTO image_properties (session, sync_id, cam, img, trc, cut_env) VALUES")
+
     for sync_id, rec in image_pairs.items():
-        print("('{0}', {1}, '{2}', '{3}', {4}, ST_GeomFromText({5}, 326{6})),"
+        logger.debug("Writing {0}".format(sync_id))
+        logger.debug(cam1_env)
+        logger.debug(cam2_env)
+        print("INSERT INTO image_properties (session, sync_id, cam, img, trc, cut_env) VALUES")
+        print("('{0}', {1}, '{2}', '{3}', {4}, ST_Multi(ST_GeomFromText('{5}', 326{6}))),"
               .format(session, sync_id, 1, rec.cam1_id, rec.trac, dumps(rec.cam1_env), utm_sector))
-        print("('{0}', {1}, '{2}', '{3}', {4}, ST_GeomFromText({5}, 326{6})),"
+        print("('{0}', {1}, '{2}', '{3}', {4}, ST_Multi(ST_GeomFromText('{5}', 326{6})));"
               .format(session, sync_id, 2, rec.cam2_id, rec.trac, dumps(rec.cam2_env), utm_sector))
