@@ -1,0 +1,88 @@
+#!/usr/bin/python3.4
+
+#   Copyright (C) 2016  Axel Wegener <a.wegener@ifaoe.de>
+
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import logging
+from argparse import ArgumentParser
+import psycopg2
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser(description='Georeference DAISI images from tif')
+    parser.add_argument('-i', '--in-path', type=str, help='Input path of unreferenced tiffs (default: working directory)')
+    parser.add_argument('-o', '--out-path', type=str, help='Output path for georeferenced images (default: working directory)')
+    parser.add_argument('-H', '--host', type=str, default='127.0.0.1', help='Database host (default: 127.0.0.1).')
+    parser.add_argument('-d', '--database', type=str, default='daisi', help='Database name (default: daisi).')
+    parser.add_argument('-u', '--user', type=str, default='daisi', help='Database user (default: daisi).')
+    parser.add_argument('-P', '--password', type=str, default='18ifaoe184', help='Database password.')
+    parser.add_argument('-p', '--port', type=str, default='5432', help='Database port (default: 5432).')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbosity')
+    parser.add_argument('-r', '--resolution', type=float, default=0.01, help='Target resolution in meters (default: 0.01)')
+    parser.add_argument('-f', '--format', type=str, default='GTiff', help='Output format (default: GTiff)')
+    parser.add_argument('-c', '--compression', type=str, default='JPEG', help='Compression inside tiff, only for tiff format (default: JPEG)')
+    parser.add_argument('-q', '--quality', type=int, default=95, help='Compression quality, only for jpg (default: 95)')
+    parser.add_argument('--block-size', type=int, nargs=2, default=[256, 256], help='X and Y Blocksize for tiff type (default: 256 256')
+    parser.add_argument('--pyramids', type=int, help='Image pyramid count for overview (default: disabled)')
+    parser.add_argument('--resample', type=str, default='lanczos', help='Resampling algorithm (default: lanczos)')
+    parser.add_argument('session', type=str, help='Session')
+    parser.add_argument('camera', type=str, help='Camera')
+    parser.add_argument('image', type=str, help='Image (without extension)')
+
+    args = parser.parse_args()
+
+    session = args.session
+    camera = args.camera
+    image = args.image
+    db_host = args.host
+    db_name = args.database
+    db_user = args.user
+    db_password = args.password
+    db_port = args.port
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+
+    # initialize database connection
+    logger.debug("Connecting to database")
+    connection = psycopg2.connect(database=db_name, user=db_user, password=db_password, host=db_host, port=db_port)
+    cursor = connection.cursor()
+
+    logger.debug('Getting geometry information.')
+    if camera == '1':
+        cursor.execute('SELECT st_x(geo_nw_sb), st_y(geo_nw_sb), st_x(geo_sw_sb), st_y(geo_sw_sb), st_x(geo_no_sb), st_y(geo_no_sb), st_x(geo_so_sb), '
+                       'st_y(geo_so_sb), epsg FROM sync_utm32 WHERE session=%s AND cam1_id LIKE %s ORDER BY cam1_id', (session, image,))
+    elif camera == '2':
+        cursor.execute('SELECT st_x(geo_nw_bb), st_y(geo_nw_bb), st_x(geo_sw_bb), st_y(geo_sw_bb), st_x(geo_no_bb), st_y(geo_no_bb), st_x(geo_so_bb), '
+                       'st_y(geo_so_bb), epsg FROM sync_utm32 WHERE session=%s AND cam1_id LIKE %s ORDER BY cam2_id', (session, image,))
+    else:
+        logger.critical('Unknown camera. Aborting.')
+        exit(1)
+
+    row = cursor.fetchone()
+
+    upper_left_x = row[0]
+    upper_left_y = row[1]
+    lower_left_x = row[2]
+    lower_left_y = row[3]
+    lower_right_x = row[4]
+    lower_right_y = row[5]
+    upper_right_x = row[6]
+    upper_right_y = row[7]
+    epsg = row[8]
+
