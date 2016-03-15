@@ -1,0 +1,98 @@
+#!/usr/bin/python
+
+#   daisi_analyze_glare - calculate a value (float) from daisi images indicating the amount of glare
+#   Copyright (C) 2016  Axel Wegener <a.wegener@ifaoe.de>
+
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import cv2
+from os import path, getcwd
+from argparse import ArgumentParser
+from numpy import histogram, prod, max, average
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def analyze(image_file):
+    # read the image
+    logger.debug("Reading image...")
+    cv_image = cv2.imread(image_file, -1)
+
+    num_depth = pow(2, 8)
+    logger.debug("Calculating image depth...")
+    if max(cv_image) > 255:
+        logger.debug("Scaling image down from 16 to 8 bit...")
+        cv_image /= num_depth
+        if cv_image.ndim > 1:
+            cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+    else:
+        logger.debug("Image already at 8 bit depth.")
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+
+    scale_value = (num_depth / 2) / average(cv_image)
+    cv_image *= scale_value
+
+    logger.debug("Calculating Histogram...")
+    hist, bins = histogram(cv_image, 8, [0, num_depth - 1])
+
+    num_pixel = prod(cv_image.shape)
+    return float(hist[-1]) / float(num_pixel)
+
+
+if __name__ == '__main__':
+    # parse arguments
+    parser = ArgumentParser(description='Analyze glare in DAISI images')
+    parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('--path', '-p', type=str, help='path for images')
+    parser.add_argument('--session', '-s', type=str, help='session for sql update')
+    parser.add_argument('camera', type=str, help='camera')
+    parser.add_argument('image', type=str, help='image')
+
+    args = parser.parse_args()
+    camera = args.camera
+    image = args.image
+    session = args.session
+
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Debugging enabled.")
+
+    # use current path if path is not set by argument
+    if args.path is None:
+        work_path = getcwd()
+    else:
+        work_path = args.path
+
+    # assemble image path
+    image_path = path.join(work_path, 'cam' + camera, 'geo', image + '.tif')
+
+    # check if image exists
+    if not path.isfile(image_path):
+        logger.critical('Error: File {0} not found'.format(image_path))
+        exit(1)
+
+    # if everything went right start processing
+    value = analyze(image_path)
+
+    if session is not None:
+        session_filter = " AND session = '{0}'".format(session)
+    else:
+        session_filter = ""
+
+    print("UPDATE image_properies SET glare_value={0} WHERE cam='{1}' AND img='{2}' {3};"
+          .format(value, camera, image, session_filter))
+
+    exit(0)
