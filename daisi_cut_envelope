@@ -79,12 +79,12 @@ if __name__ == '__main__':
     logger.debug("Getting gps and geo data from database.")
     image_pairs = {}
     cursor.execute(
-        "SELECT sync_id, gps_trc, cam1_id, cam2_id, ST_AsText(ST_Multi(geo_rc_sb)), ST_AsText(ST_Multi(geo_rc_bb)), gps_tm + gps_dt, lon, lat, head_stabi FROM sync_utm{0} "
+        "SELECT sync_id, gps_trc, cam1_id, cam2_id, ST_AsText(ST_Multi(geo_rc_sb)), ST_AsText(ST_Multi(geo_rc_bb)), gps_tm + gps_dt AT TIME ZONE 'MET', lon, lat, head_stabi FROM sync_utm{0} "
         "WHERE session=%s ORDER BY sync_id".format(utm_sector),
         (session,))
     for record in cursor:
         (sync_id, trac, cam1_id, cam2_id, cam1_env, cam2_env, timestamp, lon, lat, heading) = record
-        solar_direction = (heading - get_azimuth(lon, lat, timestamp) + 360) % 360
+        solar_direction = (heading - (360 + 180 - get_azimuth(lat, lon, timestamp))) % 360
         image_pairs[sync_id] = ImagePair(trac, cam1_id, cam2_id, loads(cam1_env), loads(cam2_env), solar_direction)
 
     # calculate envelopes
@@ -150,6 +150,20 @@ if __name__ == '__main__':
                 image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
         else:
             logger.warn("Unknown handling for azimuth value {0}. Images with sync_id {1} won't be processed".format(solar_direction, sync_id, ))
+
+    # cut envelope again in case sun position has sufficiently changed
+    for sync_id in image_pairs:
+        cam1_env = image_pairs[sync_id].cam1_env
+        cam2_env = image_pairs[sync_id].cam2_env
+        try:
+            ne_env = image_pairs[sync_id + 1].cam1_env
+            nw_env = image_pairs[sync_id + 1].cam2_env
+            # cut cam 1
+            image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([ne_env, sw_env]))
+            # cut cam 2
+            image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([ne_env, nw_env]))
+        except KeyError:
+            logger.debug("Sanity cut: sync_id {0} not found. Assuming last image.".format(sync_id + 1))
 
     # create output
     # to stdout
