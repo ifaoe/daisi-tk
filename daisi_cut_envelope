@@ -103,28 +103,15 @@ if __name__ == '__main__':
                 ne_env = image_pairs[sync_id + 1].cam1_env
                 nw_env = image_pairs[sync_id + 1].cam2_env
                 # cut cam 1
-                image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([ne_env, nw_env]))
+                image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([cam2_env, ne_env, nw_env]))
                 # cut cam 2
-                image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([cam1_env, ne_env, nw_env]))
+                image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([ne_env, nw_env]))
             except KeyError:
                 logger.debug("sync_id {0} not found. Assuming last image.".format(sync_id + 1))
-                image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
+                image_pairs[sync_id].cam1_env = cam1_env.difference(cam2_env)
 
         # case SE cut south and east
         elif 90 <= solar_direction < 180:
-            try:
-                se_env = image_pairs[sync_id - 1].cam1_env
-                sw_env = image_pairs[sync_id - 1].cam2_env
-                # cut cam 1
-                image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([se_env, sw_env]))
-                # cut cam 2
-                image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([cam1_env, se_env, sw_env]))
-            except KeyError:
-                logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id - 1))
-                image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
-
-        # case SW cut south and west
-        elif 180 <= solar_direction < 270:
             try:
                 se_env = image_pairs[sync_id - 1].cam1_env
                 sw_env = image_pairs[sync_id - 1].cam2_env
@@ -136,18 +123,31 @@ if __name__ == '__main__':
                 logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id - 1))
                 image_pairs[sync_id].cam1_env = cam1_env.difference(cam2_env)
 
+        # case SW cut south and west
+        elif 180 <= solar_direction < 270:
+            try:
+                se_env = image_pairs[sync_id - 1].cam1_env
+                sw_env = image_pairs[sync_id - 1].cam2_env
+                # cut cam 1
+                image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([se_env, sw_env]))
+                # cut cam 2
+                image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([cam1_env, se_env, sw_env]))
+            except KeyError:
+                logger.debug("sync_id {0} not found. Assuming first image.".format(sync_id - 1))
+                image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
+
         # case NW cut north and west
         elif 270 <= solar_direction < 360:
             try:
                 ne_env = image_pairs[sync_id + 1].cam1_env
                 nw_env = image_pairs[sync_id + 1].cam2_env
                 # cut cam 1
-                image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([cam2_env, ne_env, sw_env]))
+                image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([ne_env, sw_env]))
                 # cut cam 2
-                image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([ne_env, nw_env]))
+                image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([cam1_env, ne_env, nw_env]))
             except KeyError:
                 logger.debug("sync_id {0} not found. Assuming last image.".format(sync_id + 1))
-                image_pairs[sync_id].cam1_env = cam1_env.difference(cam2_env)
+                image_pairs[sync_id].cam2_env = cam2_env.difference(cam1_env)
         else:
             logger.warn("Unknown handling for azimuth value {0}. Images with sync_id {1} won't be processed".format(solar_direction, sync_id, ))
 
