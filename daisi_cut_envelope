@@ -158,10 +158,15 @@ if __name__ == '__main__':
         try:
             ne_env = image_pairs[sync_id + 1].cam1_env
             nw_env = image_pairs[sync_id + 1].cam2_env
-            # cut cam 1
-            image_pairs[sync_id].cam1_env = cam1_env.difference(cascaded_union([ne_env, sw_env]))
-            # cut cam 2
-            image_pairs[sync_id].cam2_env = cam2_env.difference(cascaded_union([ne_env, nw_env]))
+
+            union = cascaded_union([ne_env, sw_env])
+
+            if cam1_env.intersects(union):
+                # cut cam 1
+                image_pairs[sync_id].cam1_env = cam1_env.difference(union)
+            if cam2_env.intersects(union):
+                # cut cam 2
+                image_pairs[sync_id].cam2_env = cam2_env.difference(union)
         except KeyError:
             logger.debug("Sanity cut: sync_id {0} not found. Assuming last image.".format(sync_id + 1))
 
@@ -174,8 +179,8 @@ if __name__ == '__main__':
         logger.debug("Writing {0}".format(sync_id))
         logger.debug(cam1_env)
         logger.debug(cam2_env)
-        print("INSERT INTO image_properties (session, sync_id, cam, img, trc, cut_env) VALUES")
-        print("('{0}', {1}, '{2}', '{3}', {4}, ST_Multi(ST_GeomFromText('{5}', 326{6}))),"
+        print("INSERT INTO image_properties (session, sync_id, cam, img, trc, cut_env_4326) VALUES")
+        print("('{0}', {1}, '{2}', '{3}', {4}, ST_Transform(ST_Multi(ST_GeomFromText('{5}', 326{6})),4326)),"
               .format(session, sync_id, 1, rec.cam1_id, rec.trac, dumps(rec.cam1_env), utm_sector))
-        print("('{0}', {1}, '{2}', '{3}', {4}, ST_Multi(ST_GeomFromText('{5}', 326{6})));"
+        print("('{0}', {1}, '{2}', '{3}', {4}, ST_Transform(ST_Multi(ST_GeomFromText('{5}', 326{6})),4326));"
               .format(session, sync_id, 2, rec.cam2_id, rec.trac, dumps(rec.cam2_env), utm_sector))
