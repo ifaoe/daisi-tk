@@ -33,13 +33,14 @@ if __name__ == '__main__':
     parser.add_argument('-P', '--password', type=str, default='18ifaoe184', help='Database password.')
     parser.add_argument('-p', '--port', type=str, default='5432', help='Database port (default: 5432).')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbosity')
-    parser.add_argument('-r', '--resolution', type=float, default=0.01, help='Target resolution in meters (default: 0.01)')
+    parser.add_argument('-r', '--resolution', type=float, default=0.02, help='Target resolution in meters (default: 0.02)')
     parser.add_argument('-f', '--format', type=str, default='GTiff', help='Output format (default: GTiff)')
     parser.add_argument('-c', '--compression', type=str, default='JPEG', help='Compression inside tiff, only for tiff format (default: JPEG)')
     parser.add_argument('-q', '--quality', type=int, default=95, help='Compression quality, only for jpg (default: 95)')
     parser.add_argument('--block-size', type=int, nargs=2, default=[256, 256], help='X and Y Blocksize for tiff type (default: 256 256')
     parser.add_argument('--pyramids', type=int, help='Image pyramid count for overview (default: disabled)')
     parser.add_argument('--resample', type=str, default='lanczos', help='Resampling algorithm (default: lanczos)')
+    parser.add_argument('--utm', type=int, default=32, help='UTM Sector (default: 32)')
     parser.add_argument('session', type=str, help='Session')
     parser.add_argument('camera', type=str, help='Camera')
     parser.add_argument('image', type=str, help='Image (without extension)')
@@ -55,6 +56,8 @@ if __name__ == '__main__':
     db_password = args.password
     db_port = args.port
 
+    utm = args.utm
+
     if args.verbose:
         logger.setLevel(logging.DEBUG)
 
@@ -66,10 +69,10 @@ if __name__ == '__main__':
     logger.debug('Getting geometry information.')
     if camera == '1':
         cursor.execute('SELECT st_x(geo_nw_sb), st_y(geo_nw_sb), st_x(geo_sw_sb), st_y(geo_sw_sb), st_x(geo_no_sb), st_y(geo_no_sb), st_x(geo_so_sb), '
-                       'st_y(geo_so_sb), epsg FROM sync_utm32 WHERE session=%s AND cam1_id LIKE %s ORDER BY cam1_id', (session, image,))
+                       'st_y(geo_so_sb), epsg FROM sync_utm{0} WHERE session=%s AND cam1_id LIKE %s ORDER BY cam1_id'.format(utm), (session, image,))
     elif camera == '2':
         cursor.execute('SELECT st_x(geo_nw_bb), st_y(geo_nw_bb), st_x(geo_sw_bb), st_y(geo_sw_bb), st_x(geo_no_bb), st_y(geo_no_bb), st_x(geo_so_bb), '
-                       'st_y(geo_so_bb), epsg FROM sync_utm32 WHERE session=%s AND cam1_id LIKE %s ORDER BY cam2_id', (session, image,))
+                       'st_y(geo_so_bb), epsg FROM sync_utm{1} WHERE session=%s AND cam1_id LIKE %s ORDER BY cam2_id'.format(utm), (session, image,))
     else:
         logger.critical('Unknown camera. Aborting.')
         exit(1)
