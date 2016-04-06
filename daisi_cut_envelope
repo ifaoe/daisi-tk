@@ -17,7 +17,7 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from shapely.wkt import loads, dumps
-from shapely.ops import cascaded_union
+from shapely.ops import cascaded_union, unary_union
 from argparse import ArgumentParser
 import psycopg2
 from pysolar.solar import get_azimuth
@@ -25,7 +25,6 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 class ImagePair:
     cam1_cut_env = ""
@@ -155,10 +154,9 @@ if __name__ == '__main__':
         cam1_env = image_pairs[sync_id].cam1_env
         cam2_env = image_pairs[sync_id].cam2_env
         try:
-            ne_env = image_pairs[sync_id + 1].cam1_env
-            nw_env = image_pairs[sync_id + 1].cam2_env
-
-            union = cascaded_union([ne_env, nw_env])
+            ne_env = image_pairs[sync_id + 1].cam1_env.buffer(0.0000001)
+            nw_env = image_pairs[sync_id + 1].cam2_env.buffer(0.0000001)
+            union = unary_union([ne_env, nw_env])
 
             if cam1_env.intersects(union):
                 # cut cam 1
