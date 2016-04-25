@@ -92,7 +92,7 @@ if __name__ == '__main__':
     else:
         session_filter = ""
 
-    print("UPDATE image_properies SET glare_value={0} WHERE cam='{1}' AND img='{2}' {3};"
+    print("UPDATE images SET glare_value={0} WHERE camera='{1}' AND image='{2}' {3};"
           .format(value, camera, image, session_filter))
 
     exit(0)
