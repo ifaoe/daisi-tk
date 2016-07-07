@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4
+#!/usr/bin/python3
 
 #   Copyright (C) 2016  Axel Wegener <a.wegener@ifaoe.de>
 
@@ -17,75 +17,163 @@
 
 import logging
 from argparse import ArgumentParser
-import psycopg2
+import os
+import subprocess
+# from PIL import Image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# function to assemble gdal control points in the right format
+def get_gcp(pixel_x, pixel_y, utm_x, utm_y):
+    return '-gcp {0} {1} {2} {3}'.format(pixel_x, pixel_y, utm_x, utm_y)
+
+
+# main encapsulated funtion in order to use it in library mode
+def process(input_file, output_file, north_east, north_west, south_east, south_west, threads, resolution, compress, quality, resample, utm, block_size, verbose):
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+
+    # pillow does not support 16bit images
+    # instead get the image size from bash
+    #
+    # print('Getting input image file {0}...'.format(input_file))
+    # input_image = Image.open(input_file)
+    # if not input_image.veryify():
+    #     logger.critical('{0} is not a valid image.'.format(input_file))
+    #     exit(1)
+    #
+    # width, height = input_image.size
+
+    width, height = subprocess.run('gdalinfo {0} | grep "Size is" | sed -e "s/[^0-9,]*//g"'.format(input_file),
+                                   shell=True, stdout=subprocess.PIPE).stdout.decode('utf-8').replace('\n', '').split(',')
+
+    logger.debug('Image size is {0} {1}'.format(width, height))
+
+    # assemble gdal options
+    # use all cpus if no other option is set
+    if threads == 0:
+        thread_count = 'ALL_CPUS'
+    else:
+        thread_count = threads
+
+    translation_options = ' -oo NUM_THREADS={0} -r {1}'.format(thread_count, resample)
+    translation_epsg = '-a_srs epsg:{0}'.format(utm)
+
+    # get gdal control points
+    nw_gcp = get_gcp(0, 0, north_west[0], north_west[1])
+    sw_gcp = get_gcp(0, height, south_west[0], south_west[1])
+    ne_gcp = get_gcp(width, 0, north_east[0], north_west[1])
+    se_gcp = get_gcp(width, height, south_east[0], south_east[1])
+
+    # create temp_path
+    # temp_path = os.path.join(os.path.expanduser('~'), 'temp', 'daisi')
+    temp_path = os.path.dirname(output_file)
+    base_name = os.path.splitext(output_file)[0]
+    if not os.path.exists(temp_path):
+        os.mkdir(temp_path)
+
+    # check gdal version in order to take advantage of advanced multicore options
+    gdal_version = int(subprocess.run('gdal-config --version', shell=True, stdout=subprocess.PIPE).stdout.decode('utf8').replace('.', '')[0:3])
+    logger.debug('GDAL version is {0}'.format(gdal_version))
+
+    warp_parallel = ''
+    translate_parallel = ''
+    if gdal_version >= 210:
+        warp_parallel = '-doo NUM_THREADS={0}'.format(thread_count)
+        translate_parallel = '-co NUM_THREADS={0}'.format(thread_count)
+        logger.debug('GDAL version < 2.1.0. Using single threaded functions.')
+
+    # check if another temporary file already exists and delete it
+    temp_translate = os.path.join(temp_path, '{0}.translate'.format(base_name))
+    if os.path.exists(temp_translate):
+        os.remove(temp_translate)
+
+    # assemble gdal_translate bash command
+    translate_run = ' '.join(
+        ['gdal_translate', '-of GTiff', nw_gcp, sw_gcp, ne_gcp, se_gcp, translation_epsg, translation_options, translate_parallel, input_file, temp_translate])
+    print('Transforming image to given coordinates...')
+    logger.debug(translate_run)
+    subprocess.run(translate_run, shell=True, check=True)
+
+    # define more warp options
+    warp_options = '--config GDAL_CACHEMAX 8000 -wm 8000 -wo NUM_THREADS={0} -oo NUM_THREADS={0} -r {1}'.format(thread_count, resample)
+    warp_resolution = '-tr {0} {0}'.format(resolution, resolution)
+    warp_blocksize = '-co BLOCKXSIZE={0} -co BLOCKYSIZE={1}'.format(block_size[0], block_size[1])
+    warp_epsg = '-t_srs epsg:{0}'.format(utm)
+
+    # if we want to compress the final image we need another translate step, hence another temporary file
+    # else just write the final file
+    if compress:
+        temp_warp = os.path.join(temp_path, '{0}.warp'.format(base_name))
+        if os.path.exists(temp_warp):
+            os.remove(temp_warp)
+    else:
+        temp_warp = output_file
+
+    # assemble gdalwarp bash command
+    warp_run = ' '.join(
+        ['gdalwarp', '-of GTiff', '-dstnodata \'0 0 0\'', warp_epsg, warp_options, warp_blocksize, warp_resolution, warp_parallel, temp_translate, temp_warp])
+    print('Warping image...')
+    logger.debug(warp_run)
+    subprocess.run(warp_run, shell=True, check=True)
+    os.remove(temp_translate)
+
+    # another gdal_translate in order to compress the final image
+    if compress:
+        compress_run = ' '.join(['gdal_translate', '-of GTiff', '-ot Byte', '-scale 0 65535 0 255', '-co COMPRESS=JPEG',
+                                 '-co JPEG_QUALITY={0}'.format(quality), temp_warp, output_file])
+        print('Compressing image...')
+        logger.debug(compress_run)
+        subprocess.run(compress_run, shell=True, check=True)
+        os.remove(temp_warp)
+
+    aux_file = output_file + '.aux.xml'
+    if os.path.isfile(aux_file):
+        logger.debug('Removing auxillary file: {0}'.format(aux_file))
+        os.remove(aux_file)
+    exit(1)
+
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Georeference DAISI images from tif')
-    parser.add_argument('-i', '--in-path', type=str, help='Input path of unreferenced tiffs (default: working directory)')
-    parser.add_argument('-o', '--out-path', type=str, help='Output path for georeferenced images (default: working directory)')
-    parser.add_argument('-H', '--host', type=str, default='127.0.0.1', help='Database host (default: 127.0.0.1).')
-    parser.add_argument('-d', '--database', type=str, default='daisi', help='Database name (default: daisi).')
-    parser.add_argument('-u', '--user', type=str, default='daisi', help='Database user (default: daisi).')
-    parser.add_argument('-P', '--password', type=str, default='18ifaoe184', help='Database password.')
-    parser.add_argument('-p', '--port', type=str, default='5432', help='Database port (default: 5432).')
+
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbosity')
     parser.add_argument('-r', '--resolution', type=float, default=0.02, help='Target resolution in meters (default: 0.02)')
-    parser.add_argument('-f', '--format', type=str, default='GTiff', help='Output format (default: GTiff)')
-    parser.add_argument('-c', '--compression', type=str, default='JPEG', help='Compression inside tiff, only for tiff format (default: JPEG)')
+    parser.add_argument('-c', '--compress', action='store_true', help='Enable JPEG compression')
     parser.add_argument('-q', '--quality', type=int, default=95, help='Compression quality, only for jpg (default: 95)')
+    parser.add_argument('-o', '--overwrite', action='store_true', help='Overwrite existing images')
     parser.add_argument('--block-size', type=int, nargs=2, default=[256, 256], help='X and Y Blocksize for tiff type (default: 256 256')
-    parser.add_argument('--pyramids', type=int, help='Image pyramid count for overview (default: disabled)')
     parser.add_argument('--resample', type=str, default='lanczos', help='Resampling algorithm (default: lanczos)')
-    parser.add_argument('--utm', type=int, default=32, help='UTM Sector (default: 32)')
-    parser.add_argument('session', type=str, help='Session')
-    parser.add_argument('camera', type=str, help='Camera')
-    parser.add_argument('image', type=str, help='Image (without extension)')
+    parser.add_argument('--utm', type=int, default=32632, help='UTM Sector (default: 32)')
+    parser.add_argument('-t', '--threads', type=int, default=0, help='Number of threads to use (default: all)')
+    parser.add_argument('input', type=str, help='Input path of unreferenced tiff')
+    parser.add_argument('output', type=str, help='Output path for georeferenced image')
+    parser.add_argument('north_west', type=float, nargs=2, help='North west corner')
+    parser.add_argument('north_east', type=float, nargs=2, help='North east corner')
+    parser.add_argument('south_west', type=float, nargs=2, help='South west corner')
+    parser.add_argument('south_east', type=float, nargs=2, help='South east corner')
 
     args = parser.parse_args()
 
-    session = args.session
-    camera = args.camera
-    image = args.image
-    db_host = args.host
-    db_name = args.database
-    db_user = args.user
-    db_password = args.password
-    db_port = args.port
-
-    utm = args.utm
-
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
-
-    # initialize database connection
-    logger.debug("Connecting to database")
-    connection = psycopg2.connect(database=db_name, user=db_user, password=db_password, host=db_host, port=db_port)
-    cursor = connection.cursor()
-
-    logger.debug('Getting geometry information.')
-    if camera == '1':
-        cursor.execute('SELECT st_x(geo_nw_sb), st_y(geo_nw_sb), st_x(geo_sw_sb), st_y(geo_sw_sb), st_x(geo_no_sb), st_y(geo_no_sb), st_x(geo_so_sb), '
-                       'st_y(geo_so_sb), epsg FROM sync_utm{0} WHERE session=%s AND cam1_id LIKE %s ORDER BY cam1_id'.format(utm), (session, image,))
-    elif camera == '2':
-        cursor.execute('SELECT st_x(geo_nw_bb), st_y(geo_nw_bb), st_x(geo_sw_bb), st_y(geo_sw_bb), st_x(geo_no_bb), st_y(geo_no_bb), st_x(geo_so_bb), '
-                       'st_y(geo_so_bb), epsg FROM sync_utm{1} WHERE session=%s AND cam1_id LIKE %s ORDER BY cam2_id'.format(utm), (session, image,))
-    else:
-        logger.critical('Unknown camera. Aborting.')
+    logger.debug('Checking file locations...')
+    input_file = os.path.abspath(args.input)
+    if not os.path.isfile(input_file):
+        logger.critical('Input file {0} does not exist.'.format(input_file))
         exit(1)
 
-    row = cursor.fetchone()
+    output_file = os.path.abspath(args.output)
+    if os.path.exists(output_file):
+        if args.overwrite:
+            print('Image {0} already exists. Overwriting as per option.'.format(output_file))
+            os.remove(output_file)
+        else:
+            logger.critical('Output file {0} already exists.'.format(output_file))
+            exit(1)
 
-    upper_left_x = row[0]
-    upper_left_y = row[1]
-    lower_left_x = row[2]
-    lower_left_y = row[3]
-    lower_right_x = row[4]
-    lower_right_y = row[5]
-    upper_right_x = row[6]
-    upper_right_y = row[7]
-    epsg = row[8]
 
+    process(input_file, output_file, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
+            args.quality, args.resample, args.utm, args.block_size, args.verbose)
+
+    exit(0)

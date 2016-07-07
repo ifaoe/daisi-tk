@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4
+#!/usr/bin/python3
 
 #   calculate_cut_envelope - calculate valid areas of footprints from the DAISI system taking into consideration heading and solar azimuth angles
 #   Copyright (C) 2016  Axel Wegener <a.wegener@ifaoe.de>
@@ -8,7 +8,7 @@
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 
-#    This program is distributed in the hope that it will be useful,
+#    This program is distributed in the hope that it will be ueful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
