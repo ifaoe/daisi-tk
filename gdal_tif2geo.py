@@ -31,7 +31,8 @@ def get_gcp(pixel_x, pixel_y, utm_x, utm_y):
 
 
 # main encapsulated funtion in order to use it in library mode
-def process(input_file, output_file, north_east, north_west, south_east, south_west, threads, resolution, compress, quality, resample, utm, block_size, verbose):
+def process(input_file, output_file, north_east, north_west, south_east, south_west, threads, resolution, compress, quality, resample, utm, block_size, verbose,
+            opencl):
     if verbose:
         logger.setLevel(logging.DEBUG)
 
@@ -82,7 +83,11 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     translate_parallel = ''
     if gdal_version >= 210:
         warp_parallel = '-doo NUM_THREADS={0}'.format(thread_count)
+        if not opencl:
+            logger.debug("OpenCL disabled.")
+            warp_parallel += ' -wo "USE_OPENCL=FALSE"'
         translate_parallel = '-co NUM_THREADS={0}'.format(thread_count)
+    else:
         logger.debug('GDAL version < 2.1.0. Using single threaded functions.')
 
     # check if another temporary file already exists and delete it
@@ -154,26 +159,30 @@ if __name__ == '__main__':
     parser.add_argument('north_east', type=float, nargs=2, help='North east corner')
     parser.add_argument('south_west', type=float, nargs=2, help='South west corner')
     parser.add_argument('south_east', type=float, nargs=2, help='South east corner')
+    parser.add_argument('--opencl', action='store_true', help='Enable OpenCl.')
 
     args = parser.parse_args()
 
     logger.debug('Checking file locations...')
-    input_file = os.path.abspath(args.input)
-    if not os.path.isfile(input_file):
-        logger.critical('Input file {0} does not exist.'.format(input_file))
+    input_path = os.path.abspath(args.input)
+    if not os.path.isfile(input_path):
+        logger.critical('Input file {0} does not exist.'.format(input_path))
         exit(1)
 
-    output_file = os.path.abspath(args.output)
-    if os.path.exists(output_file):
+    output_path = os.path.abspath(args.output)
+    if os.path.exists(output_path):
         if args.overwrite:
-            print('Image {0} already exists. Overwriting as per option.'.format(output_file))
-            os.remove(output_file)
+            print('Image {0} already exists. Overwriting as per option.'.format(output_path))
+            os.remove(output_path)
         else:
-            logger.critical('Output file {0} already exists.'.format(output_file))
+            logger.critical('Output file {0} already exists.'.format(output_path))
             exit(1)
 
+    if not os.path.exists(os.path.dirname(output_path)):
+        logger.debug('Outputh does not exist. Creating.')
+        os.mkdir(os.path.dirname(output_path))
 
-    process(input_file, output_file, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
-            args.quality, args.resample, args.utm, args.block_size, args.verbose)
+    process(input_path, output_path, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
+            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl)
 
     exit(0)
