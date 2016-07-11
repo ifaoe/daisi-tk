@@ -19,6 +19,7 @@ import logging
 from argparse import ArgumentParser
 import os
 import subprocess
+import tempfile
 # from PIL import Image
 
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +36,24 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
             opencl):
     if verbose:
         logger.setLevel(logging.DEBUG)
+
+    logger.debug('Checking file locations...')
+
+    if not os.path.isfile(input_file):
+        logger.critical('Input file {0} does not exist.'.format(input_file))
+        exit(1)
+
+    if os.path.exists(output_file):
+        if args.overwrite:
+            print('Image {0} already exists. Overwriting as per option.'.format(output_file))
+            os.remove(output_file)
+        else:
+            logger.critical('Output file {0} already exists.'.format(output_file))
+            exit(1)
+
+    if not os.path.exists(os.path.dirname(output_file)):
+        logger.debug('Outpath does not exist. Creating.')
+        os.mkdir(os.path.dirname(output_file))
 
     # pillow does not support 16bit images
     # instead get the image size from bash
@@ -68,13 +87,6 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     ne_gcp = get_gcp(width, 0, north_east[0], north_west[1])
     se_gcp = get_gcp(width, height, south_east[0], south_east[1])
 
-    # create temp_path
-    # temp_path = os.path.join(os.path.expanduser('~'), 'temp', 'daisi')
-    temp_path = os.path.dirname(output_file)
-    base_name = os.path.splitext(output_file)[0]
-    if not os.path.exists(temp_path):
-        os.mkdir(temp_path)
-
     # check gdal version in order to take advantage of advanced multicore options
     gdal_version = int(subprocess.run('gdal-config --version', shell=True, stdout=subprocess.PIPE).stdout.decode('utf8').replace('.', '')[0:3])
     logger.debug('GDAL version is {0}'.format(gdal_version))
@@ -90,14 +102,13 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     else:
         logger.debug('GDAL version < 2.1.0. Using single threaded functions.')
 
-    # check if another temporary file already exists and delete it
-    temp_translate = os.path.join(temp_path, '{0}.translate'.format(base_name))
-    if os.path.exists(temp_translate):
-        os.remove(temp_translate)
+    # create translate temporary file
+    translate_file = tempfile.NamedTemporaryFile()
+    translate_name = translate_file.name
 
     # assemble gdal_translate bash command
     translate_run = ' '.join(
-        ['gdal_translate', '-of GTiff', nw_gcp, sw_gcp, ne_gcp, se_gcp, translation_epsg, translation_options, translate_parallel, input_file, temp_translate])
+        ['gdal_translate', '-of GTiff', nw_gcp, sw_gcp, ne_gcp, se_gcp, translation_epsg, translation_options, translate_parallel, input_file, translate_name])
     print('Transforming image to given coordinates...')
     logger.debug(translate_run)
     subprocess.run(translate_run, shell=True, check=True)
@@ -111,28 +122,25 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     # if we want to compress the final image we need another translate step, hence another temporary file
     # else just write the final file
     if compress:
-        temp_warp = os.path.join(temp_path, '{0}.warp'.format(base_name))
-        if os.path.exists(temp_warp):
-            os.remove(temp_warp)
+        warp_file = tempfile.NamedTemporaryFile()
+        warp_name = warp_file.name
     else:
-        temp_warp = output_file
+        warp_name = output_file
 
     # assemble gdalwarp bash command
     warp_run = ' '.join(
-        ['gdalwarp', '-of GTiff', '-dstnodata \'0 0 0\'', warp_epsg, warp_options, warp_blocksize, warp_resolution, warp_parallel, temp_translate, temp_warp])
+        ['gdalwarp', '-of GTiff', '-dstnodata \'0 0 0\'', warp_epsg, warp_options, warp_blocksize, warp_resolution, warp_parallel, translate_name, warp_name])
     print('Warping image...')
     logger.debug(warp_run)
     subprocess.run(warp_run, shell=True, check=True)
-    os.remove(temp_translate)
 
     # another gdal_translate in order to compress the final image
     if compress:
         compress_run = ' '.join(['gdal_translate', '-of GTiff', '-ot Byte', '-scale 0 65535 0 255', '-co COMPRESS=JPEG',
-                                 '-co JPEG_QUALITY={0}'.format(quality), temp_warp, output_file])
+                                 '-co JPEG_QUALITY={0}'.format(quality), warp_name, output_file])
         print('Compressing image...')
         logger.debug(compress_run)
         subprocess.run(compress_run, shell=True, check=True)
-        os.remove(temp_warp)
 
     aux_file = output_file + '.aux.xml'
     if os.path.isfile(aux_file):
@@ -151,7 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--overwrite', action='store_true', help='Overwrite existing images')
     parser.add_argument('--block-size', type=int, nargs=2, default=[256, 256], help='X and Y Blocksize for tiff type (default: 256 256')
     parser.add_argument('--resample', type=str, default='lanczos', help='Resampling algorithm (default: lanczos)')
-    parser.add_argument('--utm', type=int, default=32632, help='UTM Sector (default: 32)')
+    parser.add_argument('--utm', type=int, default=32632, help='UTM Sector (default: 32632)')
     parser.add_argument('-t', '--threads', type=int, default=0, help='Number of threads to use (default: all)')
     parser.add_argument('input', type=str, help='Input path of unreferenced tiff')
     parser.add_argument('output', type=str, help='Output path for georeferenced image')
@@ -163,24 +171,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logger.debug('Checking file locations...')
     input_path = os.path.abspath(args.input)
-    if not os.path.isfile(input_path):
-        logger.critical('Input file {0} does not exist.'.format(input_path))
-        exit(1)
-
     output_path = os.path.abspath(args.output)
-    if os.path.exists(output_path):
-        if args.overwrite:
-            print('Image {0} already exists. Overwriting as per option.'.format(output_path))
-            os.remove(output_path)
-        else:
-            logger.critical('Output file {0} already exists.'.format(output_path))
-            exit(1)
-
-    if not os.path.exists(os.path.dirname(output_path)):
-        logger.debug('Outputh does not exist. Creating.')
-        os.mkdir(os.path.dirname(output_path))
 
     process(input_path, output_path, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
             args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl)

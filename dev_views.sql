@@ -1,6 +1,7 @@
 DROP VIEW daisi_dev.gdal_images;
 CREATE OR REPLACE VIEW daisi_dev.gdal_images AS
 SELECT
+    p.location,
     32600 + p.utm_sector as epsg,
     i.session::text,
     i.transect::text,
