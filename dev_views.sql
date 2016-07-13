@@ -19,3 +19,5 @@ JOIN
     projects p ON i.session=p.flight_id
 WHERE
     p.project_id=p.flight_id;
+    
+GRANT SELECT ON TABLE daisi_dev.gdal_images TO daisi;

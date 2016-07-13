@@ -52,7 +52,7 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
             exit(1)
 
     if not os.path.exists(os.path.dirname(output_file)):
-        logger.debug('Outpath does not exist. Creating.')
+        logger.debug('Outpath {0} does not exist. Creating.'.format(os.path.dirname(output_file)))
         os.mkdir(os.path.dirname(output_file))
 
     # pillow does not support 16bit images
