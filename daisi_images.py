@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def parallel_process(linco_path, threads, row):
+def parallel_process(linco_path, threads, row, overwrite):
     [epsg, iiq_file, geo_file, ne_x, ne_y, nw_x, nw_y, sw_x, sw_y, se_x, se_y] = row
     # convert iiq -> tiff
     # create temporary file
@@ -25,7 +25,7 @@ def parallel_process(linco_path, threads, row):
 
     # create geotiff
     process(temp_file.name, geo_file, [ne_x, ne_y], [nw_x, nw_y], [se_x, se_y], [sw_x, sw_y], threads,
-            0.02, True, 95, 'lanczos', epsg, [256, 256], args.verbose, False)
+            0.02, True, 95, 'lanczos', epsg, [256, 256], args.verbose, False, overwrite)
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Georeference DAISI images from tif.')
@@ -40,6 +40,7 @@ if __name__ == '__main__':
     parser.add_argument('-P', '--password', type=str, default='18ifaoe184', help='Database password.')
     parser.add_argument('-p', '--port', type=str, default='5432', help='Database port (default: 5432).')
     parser.add_argument('-l', '--location', type=str, default='rostock', help='Image data location (default: rostock)')
+    parser.add_argument('-o', '--overwrite', action='store_true', help='Overwrite image if it already exists.')
     parser.add_argument('--linco', type=str, default='/usr/local/bin/linco', help='Location of linco executable.')
 
     args = parser.parse_args()
@@ -69,5 +70,5 @@ if __name__ == '__main__':
 
     logger.debug('Found {0} CPUs. Using {1} processes with {2} thread(s) each.'.format(cpu_count, process_count, thread_count))
 
-    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco, thread_count, row) for row in rows)
+    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco, thread_count, row, args.overwrite) for row in rows)
 

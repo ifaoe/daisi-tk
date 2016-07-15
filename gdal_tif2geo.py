@@ -33,7 +33,7 @@ def get_gcp(pixel_x, pixel_y, utm_x, utm_y):
 
 # main encapsulated funtion in order to use it in library mode
 def process(input_file, output_file, north_east, north_west, south_east, south_west, threads, resolution, compress, quality, resample, utm, block_size, verbose,
-            opencl):
+            opencl, overwrite):
     if verbose:
         logger.setLevel(logging.DEBUG)
 
@@ -44,7 +44,7 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
         exit(1)
 
     if os.path.exists(output_file):
-        if args.overwrite:
+        if overwrite:
             print('Image {0} already exists. Overwriting as per option.'.format(output_file))
             os.remove(output_file)
         else:
@@ -84,7 +84,7 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     # get gdal control points
     nw_gcp = get_gcp(0, 0, north_west[0], north_west[1])
     sw_gcp = get_gcp(0, height, south_west[0], south_west[1])
-    ne_gcp = get_gcp(width, 0, north_east[0], north_west[1])
+    ne_gcp = get_gcp(width, 0, north_east[0], north_east[1])
     se_gcp = get_gcp(width, height, south_east[0], south_east[1])
 
     # check gdal version in order to take advantage of advanced multicore options
@@ -175,6 +175,6 @@ if __name__ == '__main__':
     output_path = os.path.abspath(args.output)
 
     process(input_path, output_path, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
-            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl)
+            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl, args.overwrite)
 
     exit(0)
