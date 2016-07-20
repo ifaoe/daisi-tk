@@ -223,14 +223,24 @@ if __name__ == '__main__':
               .format(session, sync_id, 2, rec.cam2_id, rec.trac, dumps(erode(rec.cam2_env, precision)), utm_sector, project_list))
         index += 1
 
-    print("UPDATE images i SET i.north_east_corner = ST_TRANSFORM(geo_ne_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.north_west_corner = ST_TRANSFORM(geo_nw_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.south_west_corner = ST_TRANSFORM(geo_sw_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.south_east_corner = ST_TRANSFORM(geo_se_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.envelope = ST_TRANSFORM(geo_rc_sb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.north_east_corner = ST_TRANSFORM(geo_ne_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.north_west_corner = ST_TRANSFORM(geo_nw_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.south_west_corner = ST_TRANSFORM(geo_sw_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.south_east_corner = ST_TRANSFORM(geo_se_bb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.envelope = ST_TRANSFORM(geo_rc_sb, 4326) WHERE i.camera='1' AND i.image=s.cam1_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
 
-    print("UPDATE images i SET i.north_east_corner = ST_TRANSFORM(geo_ne_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.north_west_corner = ST_TRANSFORM(geo_nw_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.south_west_corner = ST_TRANSFORM(geo_sw_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.south_east_corner = ST_TRANSFORM(geo_se_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id AND i.session='{0}';".format(session))
-    print("UPDATE images i SET i.envelope = ST_TRANSFORM(geo_rc_bb, 4326) WHERE i.camera='1' AND i.image=s.cam2_id AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.north_east_corner = ST_TRANSFORM(geo_ne_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.north_west_corner = ST_TRANSFORM(geo_nw_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.south_west_corner = ST_TRANSFORM(geo_sw_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.south_east_corner = ST_TRANSFORM(geo_se_sb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
+    print("UPDATE images i SET i.envelope = ST_TRANSFORM(geo_rc_bb, 4326) WHERE i.camera='2' AND i.image=s.cam2_id "
+          "AND s.session='{0}' AND i.session='{0}';".format(session))
