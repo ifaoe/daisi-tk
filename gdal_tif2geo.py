@@ -109,9 +109,10 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     # assemble gdal_translate bash command
     translate_run = ' '.join(
         ['gdal_translate', '-of GTiff', nw_gcp, sw_gcp, ne_gcp, se_gcp, translation_epsg, translation_options, translate_parallel, input_file, translate_name])
-    print('Transforming image to given coordinates...')
+    logger.debug('Transforming image to given coordinates...')
     logger.debug(translate_run)
-    subprocess.run(translate_run, shell=True, check=True)
+    translate_log = subprocess.run(translate_run, shell=True, check=True, stdout=subprocess.PIPE).stdout.decode('utf8')
+    logger.debug(translate_log)
 
     # define more warp options
     warp_options = '--config GDAL_CACHEMAX 8000 -wm 8000 -wo NUM_THREADS={0} -oo NUM_THREADS={0} -r {1}'.format(thread_count, resample)
@@ -130,17 +131,19 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     # assemble gdalwarp bash command
     warp_run = ' '.join(
         ['gdalwarp', '-of GTiff', '-dstnodata \'0 0 0\'', warp_epsg, warp_options, warp_blocksize, warp_resolution, warp_parallel, translate_name, warp_name])
-    print('Warping image...')
+    logger.debug('Warping image...')
     logger.debug(warp_run)
-    subprocess.run(warp_run, shell=True, check=True)
+    warp_log = subprocess.run(warp_run, shell=True, check=True, stdout=subprocess.PIPE).stdout.decode('utf8')
+    logger.debug(warp_log)
 
     # another gdal_translate in order to compress the final image
     if compress:
         compress_run = ' '.join(['gdal_translate', '-of GTiff', '-ot Byte', '-scale 0 65535 0 255', '-co COMPRESS=JPEG',
                                  '-co JPEG_QUALITY={0}'.format(quality), warp_name, output_file])
-        print('Compressing image...')
+        logger.debug('Compressing image...')
         logger.debug(compress_run)
-        subprocess.run(compress_run, shell=True, check=True)
+        compress_log = subprocess.run(compress_run, shell=True, check=True, stdout=subprocess.PIPE).stdout.decode('utf8')
+        logger.debug(compress_log)
 
     aux_file = output_file + '.aux.xml'
     if os.path.isfile(aux_file):

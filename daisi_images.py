@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 
 def parallel_process(linco_path, threads, row, overwrite):
     [epsg, iiq_file, geo_file, ne_x, ne_y, nw_x, nw_y, sw_x, sw_y, se_x, se_y] = row
+    print("Processing {0} -> {1}".format(iiq_file, geo_file))
     # convert iiq -> tiff
     # create temporary file
     temp_file = tempfile.NamedTemporaryFile()
     # run linco
     linco_command = (linco_path, iiq_file, temp_file.name, '-bits=16', '-cputhreads={0}'.format(threads), '-shadowRecovery=75', '-highlightRecovery=75')
+    logger.debug(linco_command)
     subprocess.run(linco_command)
 
     # create geotiff
