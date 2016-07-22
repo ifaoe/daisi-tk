@@ -21,8 +21,8 @@ def parallel_process(linco_path, threads, row, overwrite):
     # create temporary file
     temp_file = tempfile.NamedTemporaryFile()
     # run linco
-    linco_command = ('nice -n 19', linco_path, iiq_file, temp_file.name, '-bits=16', '-cputhreads={0}'.format(threads), '-shadowRecovery=75', '-highlightRecovery=75')
-    logger.debug(linco_command)
+    linco_command = ('nice', '-n 19', linco_path, iiq_file, temp_file.name, '-bits=16', '-cputhreads={0}'.format(threads), '-shadowRecovery=75', '-highlightRecovery=75')
+    logger.debug(' '.join(linco_command))
     subprocess.run(linco_command)
 
     # create geotiff
