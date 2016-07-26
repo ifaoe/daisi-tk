@@ -37,6 +37,8 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     if verbose:
         logger.setLevel(logging.DEBUG)
 
+    # use different path for temporary files if given
+    # create this path if possible
     if temppath is not None:
         if not os.path.exists(temppath):
             os.mkdir(temppath)
@@ -107,6 +109,7 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
         logger.debug('GDAL version < 2.1.0. Using single threaded functions.')
 
     # create translate temporary file
+    # if temporary path not explicitly given 
     if temppath is not None:
         translate_file = tempfile.NamedTemporaryFile(dir=temppath)
     else:

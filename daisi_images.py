@@ -14,8 +14,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# function which is called in parallel
 def parallel_process(linco_path, linco_args, threads, row, overwrite, temppath):
+    # split row from database query into single variables
     [epsg, iiq_file, geo_file, ne_x, ne_y, nw_x, nw_y, sw_x, sw_y, se_x, se_y] = row
+
     print("Processing {0} -> {1}".format(iiq_file, geo_file))
     # convert iiq -> tiff
     # create temporary file
