@@ -33,9 +33,13 @@ def get_gcp(pixel_x, pixel_y, utm_x, utm_y):
 
 # main encapsulated funtion in order to use it in library mode
 def process(input_file, output_file, north_east, north_west, south_east, south_west, threads, resolution, compress, quality, resample, utm, block_size, verbose,
-            opencl, overwrite):
+            opencl, overwrite, temppath):
     if verbose:
         logger.setLevel(logging.DEBUG)
+
+    if temppath is not None:
+        if not os.path.exists(temppath):
+            os.mkdir(temppath)
 
     logger.debug('Checking file locations...')
 
@@ -103,7 +107,10 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
         logger.debug('GDAL version < 2.1.0. Using single threaded functions.')
 
     # create translate temporary file
-    translate_file = tempfile.NamedTemporaryFile()
+    if temppath is not None:
+        translate_file = tempfile.NamedTemporaryFile(dir=temppath)
+    else:
+        translate_file = tempfile.NamedTemporaryFile()
     translate_name = translate_file.name
 
     # assemble gdal_translate bash command
@@ -123,7 +130,10 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     # if we want to compress the final image we need another translate step, hence another temporary file
     # else just write the final file
     if compress:
-        warp_file = tempfile.NamedTemporaryFile()
+        if temppath is not None:
+            warp_file = tempfile.NamedTemporaryFile(dir=temppath)
+        else:
+            warp_file = tempfile.NamedTemporaryFile()
         warp_name = warp_file.name
     else:
         warp_name = output_file
@@ -171,6 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('south_west', type=float, nargs=2, help='South west corner')
     parser.add_argument('south_east', type=float, nargs=2, help='South east corner')
     parser.add_argument('--opencl', action='store_true', help='Enable OpenCl.')
+    parser.add_argument('--temp', type=str, help='Path for temporary files')
 
     args = parser.parse_args()
 
@@ -178,6 +189,6 @@ if __name__ == '__main__':
     output_path = os.path.abspath(args.output)
 
     process(input_path, output_path, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
-            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl, args.overwrite)
+            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl, args.overwrite, args.temp)
 
     exit(0)
