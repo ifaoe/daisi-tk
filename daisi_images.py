@@ -83,5 +83,5 @@ if __name__ == '__main__':
 
     logger.debug('Found {0} CPUs. Using {1} processes with {2} thread(s) each.'.format(cpu_count, process_count, thread_count))
 
-    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco_path, thread_count, row, args.overwrite, args.temp_path) for row in rows)
+    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco_path, args.linco_args, thread_count, row, args.overwrite, args.temp_path) for row in rows)
 
