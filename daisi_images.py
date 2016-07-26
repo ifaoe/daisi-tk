@@ -14,14 +14,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def parallel_process(linco_path, threads, row, overwrite, temppath):
+def parallel_process(linco_path, linco_args, threads, row, overwrite, temppath):
     [epsg, iiq_file, geo_file, ne_x, ne_y, nw_x, nw_y, sw_x, sw_y, se_x, se_y] = row
     print("Processing {0} -> {1}".format(iiq_file, geo_file))
     # convert iiq -> tiff
     # create temporary file
     temp_file = tempfile.NamedTemporaryFile()
     # run linco
-    linco_command = ('nice', '-n 19', linco_path, iiq_file, temp_file.name, '-bits=16', '-cputhreads={0}'.format(threads), '-shadowRecovery=75', '-highlightRecovery=75')
+    linco_command = ('nice', '-n 19', linco_path, iiq_file, temp_file.name, '-cputhreads={threads}'.format(threads=threads), linco_args)
     logger.debug(' '.join(linco_command))
     subprocess.run(linco_command)
 
@@ -43,10 +43,17 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', type=str, default='5432', help='Database port (default: 5432).')
     parser.add_argument('-l', '--location', type=str, default='rostock', help='Image data location (default: rostock)')
     parser.add_argument('-o', '--overwrite', action='store_true', help='Overwrite image if it already exists.')
-    parser.add_argument('--linco', type=str, default='/usr/local/bin/linco', help='Location of linco executable.')
-    parser.add_argument('--temp', type=str, help='Path for temporary files')
+    parser.add_argument('--linco-path', type=str, default='/usr/local/bin/linco', help='Location of linco executable.')
+    parser.add_argument('--linco-args', type=str, default='-bits=16 -shadowRecovery=75 -highlightRecovery=75',
+                        help='Set linco arguments (default: -bits=16 -shadowRecovery=75 -highlightRecovery=75).')
+    parser.add_argument('--linco-help', action='store_true', help='Get linco help (overwrites all other arguments).')
+    parser.add_argument('--temp-path', type=str, help='Path for temporary files')
 
     args = parser.parse_args()
+
+    if args.linco_help:
+        subprocess.run([args.linco_path, '--help'])
+        exit(1)
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
@@ -73,5 +80,5 @@ if __name__ == '__main__':
 
     logger.debug('Found {0} CPUs. Using {1} processes with {2} thread(s) each.'.format(cpu_count, process_count, thread_count))
 
-    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco, thread_count, row, args.overwrite, args.temp) for row in rows)
+    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco_path, thread_count, row, args.overwrite, args.temp_path) for row in rows)
 

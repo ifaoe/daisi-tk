@@ -181,7 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('south_west', type=float, nargs=2, help='South west corner')
     parser.add_argument('south_east', type=float, nargs=2, help='South east corner')
     parser.add_argument('--opencl', action='store_true', help='Enable OpenCl.')
-    parser.add_argument('--temp', type=str, help='Path for temporary files')
+    parser.add_argument('--temp-path', type=str, help='Path for temporary files')
 
     args = parser.parse_args()
 
@@ -189,6 +189,6 @@ if __name__ == '__main__':
     output_path = os.path.abspath(args.output)
 
     process(input_path, output_path, args.north_east, args.north_west, args.south_east, args.south_west, args.threads, args.resolution, args.compress,
-            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl, args.overwrite, args.temp)
+            args.quality, args.resample, args.utm, args.block_size, args.verbose, args.opencl, args.overwrite, args.temp_path)
 
     exit(0)
