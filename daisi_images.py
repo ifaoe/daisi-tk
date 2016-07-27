@@ -32,8 +32,8 @@ def parallel_process(row, linco_path, linco_args, threads, overwrite, temppath, 
     # run linco
     linco_command = ('nice', '-n 19', linco_path, iiq_file, temp_file.name, '-cputhreads={threads}'.format(threads=threads), linco_args)
     logger.debug(' '.join(linco_command))
-    subprocess.run(linco_command)
-
+    linco_log = subprocess.run(linco_command, shell=True, check=True, stdout=subprocess.PIPE).stdout.decode('utf8')
+    logger.debug(linco_log)
     # create geotiff
     process(temp_file.name, geo_file, [ne_x, ne_y], [nw_x, nw_y], [se_x, se_y], [sw_x, sw_y], threads,
             0.02, compress, 95, 'lanczos', epsg, [256, 256], args.verbose, opencl, overwrite, temppath)
