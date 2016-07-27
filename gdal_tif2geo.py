@@ -128,6 +128,7 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
     warp_options = '--config GDAL_CACHEMAX 8000 -wm 8000 -wo NUM_THREADS={0} -oo NUM_THREADS={0} -r {1}'.format(thread_count, resample)
     warp_resolution = '-tr {0} {0}'.format(resolution, resolution)
     warp_blocksize = '-co BLOCKXSIZE={0} -co BLOCKYSIZE={1}'.format(block_size[0], block_size[1])
+    warp_resample = '-r {resample}'.format(resample=resample)
     warp_epsg = '-t_srs epsg:{0}'.format(utm)
 
     # if we want to compress the final image we need another translate step, hence another temporary file
@@ -143,7 +144,8 @@ def process(input_file, output_file, north_east, north_west, south_east, south_w
 
     # assemble gdalwarp bash command
     warp_run = ' '.join(
-        ['gdalwarp', '-of GTiff', '-dstnodata \'0 0 0\'', warp_epsg, warp_options, warp_blocksize, warp_resolution, warp_parallel, translate_name, warp_name])
+        ['gdalwarp', '-of GTiff', '-dstnodata \'0 0 0\'', warp_epsg, warp_options, warp_blocksize, warp_resolution, warp_resample, warp_parallel,
+         translate_name, warp_name])
     logger.debug('Warping image...')
     logger.debug(warp_run)
     warp_log = subprocess.run(warp_run, shell=True, check=True, stdout=subprocess.PIPE).stdout.decode('utf8')
