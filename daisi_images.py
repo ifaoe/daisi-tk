@@ -22,7 +22,7 @@ def parallel_process(row, linco_path, linco_args, threads, overwrite, temppath, 
 
     if not overwrite:
         if os.path.isfile(geo_file) and os.path.exists(geo_file):
-            print('{file} already exists.'.format(geo_file))
+            print('{file} already exists.'.format(file=geo_file))
             return
 
     print("Processing {0} -> {1}".format(iiq_file, geo_file))
