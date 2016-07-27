@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 # function which is called in parallel
-def parallel_process(linco_path, linco_args, threads, row, overwrite, temppath):
+def parallel_process(row, linco_path, linco_args, threads, overwrite, temppath, compress, opencl):
     # split row from database query into single variables
     [epsg, iiq_file, geo_file, ne_x, ne_y, nw_x, nw_y, sw_x, sw_y, se_x, se_y] = row
 
@@ -30,7 +30,7 @@ def parallel_process(linco_path, linco_args, threads, row, overwrite, temppath):
 
     # create geotiff
     process(temp_file.name, geo_file, [ne_x, ne_y], [nw_x, nw_y], [se_x, se_y], [sw_x, sw_y], threads,
-            0.02, True, 95, 'lanczos', epsg, [256, 256], args.verbose, False, overwrite, temppath)
+            0.02, compress, 95, 'lanczos', epsg, [256, 256], args.verbose, opencl, overwrite, temppath)
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Georeference DAISI images from tif.')
@@ -51,6 +51,8 @@ if __name__ == '__main__':
                         help='Set linco arguments (default: -bits=16 -shadowRecovery=75 -highlightRecovery=75).')
     parser.add_argument('--linco-help', action='store_true', help='Get linco help (overwrites all other arguments).')
     parser.add_argument('--temp-path', type=str, help='Path for temporary files')
+    parser.add_argument('--compress', action='store_true', help='Enable JPEG compression (default: off).')
+    parser.add_argument('--opencl', action='store_true', help='Enable OpenCL (default: off, requires working OpenCL setup.).')
 
     args = parser.parse_args()
 
@@ -83,5 +85,8 @@ if __name__ == '__main__':
 
     logger.debug('Found {0} CPUs. Using {1} processes with {2} thread(s) each.'.format(cpu_count, process_count, thread_count))
 
-    Parallel(n_jobs=process_count)(delayed(parallel_process)(args.linco_path, args.linco_args, thread_count, row, args.overwrite, args.temp_path) for row in rows)
+    Parallel(n_jobs=process_count)(delayed(parallel_process)
+                                   (
+                                       row, args.linco_path, args.linco_args, thread_count, args.overwrite, args.temp_path, args.compress, args.opencl
+                                   ) for row in rows)
 
