@@ -9,6 +9,7 @@ import subprocess
 from joblib import Parallel, delayed
 from math import ceil
 import tempfile
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,6 +19,11 @@ logger = logging.getLogger(__name__)
 def parallel_process(row, linco_path, linco_args, threads, overwrite, temppath, compress, opencl):
     # split row from database query into single variables
     [epsg, iiq_file, geo_file, ne_x, ne_y, nw_x, nw_y, sw_x, sw_y, se_x, se_y] = row
+
+    if not overwrite:
+        if os.path.isfile(geo_file) and os.path.exists(geo_file):
+            print('{file} already exists.'.format(geo_file))
+            return
 
     print("Processing {0} -> {1}".format(iiq_file, geo_file))
     # convert iiq -> tiff
